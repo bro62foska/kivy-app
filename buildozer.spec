@@ -1,31 +1,23 @@
 [app]
-
-# Название вашего приложения
-title = My Kivy App
-
-# Имя пакета (без пробелов, латиницей)
-package.name = mykivyapp
-
-# Домен пакета
-package.domain = org.test
-
-# Список файлов исходного кода (через запятую)
+title = Tetris Geopolitics
+package.name = tetrisgeo
+package.domain = org.tetris
+source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
-
-# Главный файл приложения
-source.main = main.py
-
-# Версия приложения
 version = 0.1
 
-# Требования к приложениям (укажите kivy, а также сторонние библиотеки, если они есть, например, requests)
+# Зависимости
 requirements = python3,kivy
 
-# Поддерживаемая ориентация экрана
 orientation = portrait
+fullscreen = 1
 
-# Разрешения для Android (если нужно интернет-соединение, раскомментируйте строку ниже)
-# android.permissions = INTERNET
+# Настройки Android SDK / NDK
+android.api = 33
+android.minapi = 21
+android.ndk = 26b
+android.accept_sdk_license = True
+android.archs = arm64-v8a
 
 [buildozer]
 log_level = 2
