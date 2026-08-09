@@ -1,4 +1,4 @@
-import random
+
 import os
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
@@ -190,12 +190,23 @@ class TetrisBoard(Widget):
             self.game.btn_menu_dots.size = (menu_size, menu_size)
             self.game.btn_menu_dots.pos = (self.ox, dp(15))
 
-        # Обновление текста статистики
+        # Обновление текста статистики с подсветкой зелёным при превышении рекорда
         if self.game.lbl_stats:
             t = LANGUAGES[self.game.lang]
+            
+            # Проверяем, побит ли рекорд текущей сессии
+            is_new_record = (self.game.score > self.game.initial_highscore) and (self.game.score > 0)
+            
+            if is_new_record:
+                score_str = f"[color=33FF33]{self.game.score}[/color]"
+                highscore_str = f"[color=33FF33]{self.game.highscore}[/color]"
+            else:
+                score_str = f"{self.game.score}"
+                highscore_str = f"{self.game.highscore}"
+
             self.game.lbl_stats.text = (
-                f"{t['score']}: {self.game.score}  |  "
-                f"{t['highscore']}: {self.game.highscore}\n"
+                f"{t['score']}: {score_str}  |  "
+                f"{t['highscore']}: {highscore_str}\n"
                 f"{t['coins']}: {self.game.coins}"
             )
             self.game.lbl_stats.pos = (self.ox, self.oy + self.board_h + dp(10))
@@ -324,7 +335,8 @@ class TetrisGame(BoxLayout):
         self.store = JsonStore('tetris_save.json')
         self.load_data()
         
-        self.score = 0 # Текущий счёт сбрасывается
+        self.score = 0 
+        self.initial_highscore = 0  # Стартовый рекорд перед матчем
         
         self.trump_active = False
         self.trump_x = -500
@@ -358,7 +370,6 @@ class TetrisGame(BoxLayout):
         t = LANGUAGES[self.lang]
         menu_layout = BoxLayout(orientation='vertical', padding=dp(20), spacing=dp(15))
         
-        # Обновленный логотип, показывающий рекорд и монеты прямо в меню
         menu_info = f"{t['title']}\n\n{t['highscore']}: {self.highscore}\n{t['coins']}: {self.coins}"
         self.logo = Label(text=menu_info, font_size='24sp', halign='center', bold=True, size_hint=(1, 0.4))
         
@@ -442,15 +453,25 @@ class TetrisGame(BoxLayout):
         self.trump_active = False
         self.punch_active = False
         self.score = 0
-        self.load_data() # Подгружаем актуальные монеты и рекорд перед матчем
+        
+        self.load_data()
+        self.initial_highscore = self.highscore  # Запоминаем стартовый рекорд
         
         self.game_container = RelativeLayout(size_hint=(1, 1))
         
         self.board = TetrisBoard(self, size_hint=(1, 1))
         self.game_container.add_widget(self.board)
         
-        # Информационная панель (Счёт, Рекорд и Монеты)
-        self.lbl_stats = Label(text="", font_size='16sp', bold=True, color=(1, 1, 1, 1), size_hint=(None, None), halign='center')
+        # Разрешаем Kivy Markup для подсветки цифр цветом
+        self.lbl_stats = Label(
+            text="", 
+            font_size='16sp', 
+            bold=True, 
+            color=(1, 1, 1, 1), 
+            size_hint=(None, None), 
+            halign='center',
+            markup=True
+        )
         self.game_container.add_widget(self.lbl_stats)
         
         self.btn_menu_dots = StylishMenuButton(size_hint=(None, None))
@@ -513,7 +534,7 @@ class TetrisGame(BoxLayout):
     def exit_to_menu(self, instance):
         Clock.unschedule(self.update)
         self.state = 'menu'
-        self.save_data() # На всякий случай сохраняем при выходе
+        self.save_data()
         self.show_menu()
 
     def spawn_piece(self):
@@ -605,18 +626,14 @@ class TetrisGame(BoxLayout):
         lines_count = GRID_HEIGHT - len(cleared_rows)
         
         if lines_count > 0:
-            # Начисление очков
             score_rewards = {1: 100, 2: 300, 3: 700, 4: 1500}
             self.score += score_rewards.get(lines_count, 1500)
             
-            # Если побили рекорд — обновляем его сразу
+            # Обновляем рекорд
             if self.score > self.highscore:
                 self.highscore = self.score
             
-            # Начисление монет (10 за линию)
             self.coins += lines_count * 10
-            
-            # Сохраняем новые данные на устройство
             self.save_data()
             
             self.grid = cleared_rows
@@ -660,9 +677,11 @@ class TetrisGame(BoxLayout):
             elif key == 274: self.drop_hard()
             elif key == 273: self.rotate_piece(None)
 
+
 class TetrisApp(App):
     def build(self):
         return TetrisGame()
+
 
 if __name__ == '__main__':
     TetrisApp().run()
