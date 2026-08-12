@@ -1,40 +1,15 @@
-name: Build and Sign Android APK & AAB
-
-on:
-  push:
-    branches: [ "main" ]
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-python-version: '3.10'
-
-      - name: Install system dependencies
+- name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
             git \
             python3-pip \
+            python3-dev \
             ffmpeg \
             libsdl2-dev \
             libsdl2-image-dev \
-            libsdl2-mixin-dev \
+            libsdl2-mixer-dev \
             libsdl2-ttf-dev \
             libportmidi-dev \
             libswscale-dev \
@@ -48,55 +23,3 @@ jobs:
             cmake \
             zip \
             unzip
-
-      - name: Install Buildozer and Cython
-        run: |
-          pip install --upgrade pip
-          pip install buildozer cython==0.29.33
-
-      - name: Decode Keystore from Secret
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release-key.keystore
-
-      - name: Build Unsigned APK and AAB with Buildozer
-        run: |
-          # Сборка незашифрованного APK
-          buildozer android release
-          # Сборка незашифрованного AAB для Google Play
-          buildozer android aab release
-
-      - name: Sign APK and AAB with apksigner
-        run: |
-          ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT
-          BUILD_TOOLS_VERSION=$(ls $ANDROID_SDK_ROOT/build-tools | tail -n 1)
-          APKSIGNER=$ANDROID_SDK_ROOT/build-tools/$BUILD_TOOLS_VERSION/apksigner
-
-          # Поиск собранных файлов в директории bin
-          APK_FILE=$(ls bin/*.apk | head -n 1)
-          AAB_FILE=$(ls bin/*.aab | head -n 1)
-
-          # Подпись APK (для RuStore)
-          $APKSIGNER sign --ks release-key.keystore \
-            --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
-            --ks-key-alias ${{ secrets.KEY_ALIAS }} \
-            --key-pass pass:${{ secrets.KEY_PASSWORD }} \
-            --out bin/app-signed-rustore.apk $APK_FILE
-
-          # Подпись AAB (для Google Play Market)
-          $APKSIGNER sign --ks release-key.keystore \
-            --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
-            --ks-key-alias ${{ secrets.KEY_ALIAS }} \
-            --key-pass pass:${{ secrets.KEY_PASSWORD }} \
-            --out bin/app-signed-playmarket.aab $AAB_FILE
-
-      - name: Upload Signed APK (RuStore)
-        uses: actions/upload-artifact@v4
-        with:
-          name: RuStore-Signed-APK
-          path: bin/app-signed-rustore.apk
-
-      - name: Upload Signed AAB (Google Play)
-        uses: actions/upload-artifact@v4
-        with:
-          name: GooglePlay-Signed-AAB
-          path: bin/app-signed-playmarket.aab
