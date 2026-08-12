@@ -1,75 +1,102 @@
-name: Build Android APK
+name: Build and Sign Android APK & AAB
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
-    # Принудительно устанавливаем JDK 17 для правильной работы Gradle и Android SDK
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-python-version: '3.10'
 
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          python3-pip \
-          build-essential \
-          git \
-          ffmpeg \
-          libsdl2-dev \
-          libsdl2-image-dev \
-          libsdl2-mixer-dev \
-          libsdl2-ttf-dev \
-          libportmidi-dev \
-          libswscale-dev \
-          libavformat-dev \
-          libavcodec-dev \
-          zlib1g-dev \
-          libffi-dev \
-          libssl-dev \
-          autoconf \
-          libtool \
-          pkg-config \
-          unzip \
-          zip \
-          ccache
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            git \
+            python3-pip \
+            ffmpeg \
+            libsdl2-dev \
+            libsdl2-image-dev \
+            libsdl2-mixin-dev \
+            libsdl2-ttf-dev \
+            libportmidi-dev \
+            libswscale-dev \
+            libavformat-dev \
+            libavcodec-dev \
+            zlib1g-dev \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            cmake \
+            zip \
+            unzip
 
-    # Запрещаем установку Cython 3.x, фиксируем рабочую связку
-    - name: Install Buildozer, p4a and Cython
-      run: |
-        pip install --upgrade pip
-        pip install "Cython==0.29.33" "buildozer==1.5.0" "python-for-android==2024.1.21"
+      - name: Install Buildozer and Cython
+        run: |
+          pip install --upgrade pip
+          pip install buildozer cython==0.29.33
 
-    # Создаем файлы лицензий SDK заранее, чтобы Buildozer не зависал в ожидании ввода
-    - name: Pre-accept Android SDK Licenses
-      run: |
-        mkdir -p ~/.android/licenses
-        echo -e "\n24333f8a637173e92d670960af17140835591c63\n89330172876f40fa823f53b31155c63619086374\nd56f5185479c78927456b427e20bda992d8b107e" > ~/.android/licenses/android-sdk-license
-        echo -e "\n84831b9402116da578caec97d86db49a8257bfe8" > ~/.android/licenses/android-sdk-preview-license
+      - name: Decode Keystore from Secret
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release-key.keystore
 
-    - name: Build APK with Buildozer
-      run: |
-        buildozer -v android debug
+      - name: Build Unsigned APK and AAB with Buildozer
+        run: |
+          # Сборка незашифрованного APK
+          buildozer android release
+          # Сборка незашифрованного AAB для Google Play
+          buildozer android aab release
 
-    - name: Upload APK Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: tetris-geo-apk
-        path: bin/*.apk
+      - name: Sign APK and AAB with apksigner
+        run: |
+          ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT
+          BUILD_TOOLS_VERSION=$(ls $ANDROID_SDK_ROOT/build-tools | tail -n 1)
+          APKSIGNER=$ANDROID_SDK_ROOT/build-tools/$BUILD_TOOLS_VERSION/apksigner
+
+          # Поиск собранных файлов в директории bin
+          APK_FILE=$(ls bin/*.apk | head -n 1)
+          AAB_FILE=$(ls bin/*.aab | head -n 1)
+
+          # Подпись APK (для RuStore)
+          $APKSIGNER sign --ks release-key.keystore \
+            --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
+            --ks-key-alias ${{ secrets.KEY_ALIAS }} \
+            --key-pass pass:${{ secrets.KEY_PASSWORD }} \
+            --out bin/app-signed-rustore.apk $APK_FILE
+
+          # Подпись AAB (для Google Play Market)
+          $APKSIGNER sign --ks release-key.keystore \
+            --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
+            --ks-key-alias ${{ secrets.KEY_ALIAS }} \
+            --key-pass pass:${{ secrets.KEY_PASSWORD }} \
+            --out bin/app-signed-playmarket.aab $AAB_FILE
+
+      - name: Upload Signed APK (RuStore)
+        uses: actions/upload-artifact@v4
+        with:
+          name: RuStore-Signed-APK
+          path: bin/app-signed-rustore.apk
+
+      - name: Upload Signed AAB (Google Play)
+        uses: actions/upload-artifact@v4
+        with:
+          name: GooglePlay-Signed-AAB
+          path: bin/app-signed-playmarket.aab
