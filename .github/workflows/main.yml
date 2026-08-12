@@ -1,30 +1,75 @@
-name: Build APK with Buildozer
+name: Build Android APK
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11' # Используем Python 3.11 для стабильной кросс-компиляции под Android
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
 
-      - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
-        with:
-          command: buildozer android debug
-          buildozer_version: stable
+    # Принудительно устанавливаем JDK 17 для правильной работы Gradle и Android SDK
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
 
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: package
-          path: ${{ steps.buildozer.outputs.filename }}
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          python3-pip \
+          build-essential \
+          git \
+          ffmpeg \
+          libsdl2-dev \
+          libsdl2-image-dev \
+          libsdl2-mixer-dev \
+          libsdl2-ttf-dev \
+          libportmidi-dev \
+          libswscale-dev \
+          libavformat-dev \
+          libavcodec-dev \
+          zlib1g-dev \
+          libffi-dev \
+          libssl-dev \
+          autoconf \
+          libtool \
+          pkg-config \
+          unzip \
+          zip \
+          ccache
+
+    # Запрещаем установку Cython 3.x, фиксируем рабочую связку
+    - name: Install Buildozer, p4a and Cython
+      run: |
+        pip install --upgrade pip
+        pip install "Cython==0.29.33" "buildozer==1.5.0" "python-for-android==2024.1.21"
+
+    # Создаем файлы лицензий SDK заранее, чтобы Buildozer не зависал в ожидании ввода
+    - name: Pre-accept Android SDK Licenses
+      run: |
+        mkdir -p ~/.android/licenses
+        echo -e "\n24333f8a637173e92d670960af17140835591c63\n89330172876f40fa823f53b31155c63619086374\nd56f5185479c78927456b427e20bda992d8b107e" > ~/.android/licenses/android-sdk-license
+        echo -e "\n84831b9402116da578caec97d86db49a8257bfe8" > ~/.android/licenses/android-sdk-preview-license
+
+    - name: Build APK with Buildozer
+      run: |
+        buildozer -v android debug
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tetris-geo-apk
+        path: bin/*.apk
