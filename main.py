@@ -64,11 +64,11 @@ LANGUAGES = {
             '• Свайп Влево / Вправо — передвижение фигуры\n'
             '• Свайп Вверх — повернуть фигуру\n'
             '• Свайп Вниз — быстро сбросить вниз\n\n'
-            'ОСОБЕННОСТЬ (ВОР И ФЛАГ):\n'
+            'ОСОБЕННОСТЬ (ВОР И КУЛАК):\n'
             'Иногда на поле прибегает воришка, чтобы утащить ценную фигуру!\n\n'
             'КАК ЗАЩИТИТЬСЯ:\n'
-            'Как только появляется воришка, снизу вылетает КНОПКА-ФЛАГ.\n'
-            'Жми на нее быстро, чтобы спасти свою фигуру!'
+            'Как только появляется воришка, снизу вылетает КНОПКА-КУЛАК (УДАР).\n'
+            'Жми на нее быстро, чтобы дать отпор и спасти фигуру!'
         ),
     },
     'EN': {
@@ -92,11 +92,11 @@ LANGUAGES = {
             '• Swipe Left / Right — move piece\n'
             '• Swipe Up — rotate piece\n'
             '• Swipe Down — hard drop\n\n'
-            'SPECIAL FEATURE (THIEF & FLAG):\n'
+            'SPECIAL FEATURE (THIEF & FIST):\n'
             'Sometimes a thief runs in to steal a valuable piece!\n\n'
             'HOW TO DEFEND:\n'
-            'As soon as the thief appears, a FLAG BUTTON appears below.\n'
-            'Tap it quickly to save your piece!'
+            'As soon as the thief appears, a FIST BUTTON (PUNCH) appears below.\n'
+            'Tap it quickly to punch back and save your piece!'
         ),
     },
 }
@@ -173,7 +173,7 @@ class SoundManager:
   def _synth_clear(self, path):
     sr, dur = 22050, 0.24
     samples = []
-    notes = [523.25, 659.25, 783.99, 1046.50]  # C5, E5, G5, C6
+    notes = [523.25, 659.25, 783.99, 1046.50]
     n_samples = int(sr * dur)
     sub_len = n_samples // len(notes)
     for freq in notes:
@@ -213,7 +213,6 @@ class SoundManager:
 
   def _synth_laugh(self, path):
     sr, samples = 22050, []
-    # Набор импульсов со сдвигом тона (Хе-хе-хе-ХА!)
     bursts = [
         (550, 400, 0.06),
         (650, 450, 0.06),
@@ -307,12 +306,14 @@ class StylishMenuButton(Button):
       )
 
 
-class RussianFlagButton(Button):
+class FistButton(Button):
 
   def __init__(self, **kwargs):
     super().__init__(**kwargs)
     self.background_color = (0, 0, 0, 0)
-    self.text = ''
+    self.font_size = '22sp'
+    self.bold = True
+    self.color = (1, 1, 1, 1)
     self.bind(
         pos=self.update_canvas,
         size=self.update_canvas,
@@ -325,6 +326,7 @@ class RussianFlagButton(Button):
       return
 
     with self.canvas.before:
+      # Тень кнопки
       Color(0, 0, 0, 0.4)
       RoundedRectangle(
           pos=(self.x + dp(3), self.y - dp(3)),
@@ -332,32 +334,17 @@ class RussianFlagButton(Button):
           radius=[dp(16)],
       )
 
-      stripe_h = self.height / 3.0
-      r = dp(16)
-      alpha_mod = 0.7 if self.state == 'down' else 1.0
+      # Яркий боевой фон (оранжево-красный)
+      if self.state == 'down':
+        Color(0.75, 0.15, 0.1, 0.95)
+      else:
+        Color(0.9, 0.25, 0.15, 0.95)
+      RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(16)])
 
-      Color(0.95 * alpha_mod, 0.95 * alpha_mod, 0.95 * alpha_mod, 0.95)
-      RoundedRectangle(
-          pos=(self.x, self.y + stripe_h * 2),
-          size=(self.width, stripe_h),
-          radius=[(r, r), (r, r), (0, 0), (0, 0)],
-      )
-
-      Color(0.0 * alpha_mod, 0.22 * alpha_mod, 0.66 * alpha_mod, 0.95)
-      Rectangle(
-          pos=(self.x, self.y + stripe_h), size=(self.width, stripe_h)
-      )
-
-      Color(0.85 * alpha_mod, 0.1 * alpha_mod, 0.1 * alpha_mod, 0.95)
-      RoundedRectangle(
-          pos=(self.x, self.y),
-          size=(self.width, stripe_h),
-          radius=[(0, 0), (0, 0), (r, r), (r, r)],
-      )
-
-      Color(1, 1, 1, 0.8)
+      # Золотистая акцентная рамка
+      Color(1, 0.8, 0.2, 0.9)
       Line(
-          rounded_rectangle=(self.x, self.y, self.width, self.height, r),
+          rounded_rectangle=(self.x, self.y, self.width, self.height, dp(16)),
           width=dp(2),
       )
 
@@ -389,11 +376,11 @@ class TetrisBoard(Widget):
     self.ox = self.x + (self.width - self.board_w) / 2
     self.oy = self.y + (available_height - self.board_h) / 2 + dp(80)
 
-    if self.game.btn_putin:
+    if self.game.btn_fist:
       btn_w = int(self.board_w * 0.45)
-      btn_h = int(btn_w * 0.6)
-      self.game.btn_putin.size = (btn_w, btn_h)
-      self.game.btn_putin.pos = (self.ox + self.board_w - btn_w, dp(15))
+      btn_h = int(btn_w * 0.5)
+      self.game.btn_fist.size = (btn_w, btn_h)
+      self.game.btn_fist.pos = (self.ox + self.board_w - btn_w, dp(15))
 
     if self.game.btn_menu_dots:
       menu_size = int(dp(46))
@@ -572,9 +559,9 @@ class TetrisBoard(Widget):
   def on_touch_down(self, touch):
     if self.game.state == 'playing':
       if (
-          self.game.btn_putin
-          and self.game.btn_putin.parent
-          and self.game.btn_putin.collide_point(*touch.pos)
+          self.game.btn_fist
+          and self.game.btn_fist.parent
+          and self.game.btn_fist.collide_point(*touch.pos)
       ):
         return False
       if self.game.btn_menu_dots and self.game.btn_menu_dots.collide_point(
@@ -630,7 +617,7 @@ class TetrisGame(BoxLayout):
 
     self.current_shape = None
     self.next_shape = None
-    self.btn_putin = None
+    self.btn_fist = None
     self.btn_menu_dots = None
     self.lbl_stats = None
     self.show_menu()
@@ -873,8 +860,9 @@ class TetrisGame(BoxLayout):
     self.btn_menu_dots.bind(on_press=self.open_pause_popup)
     self.game_container.add_widget(self.btn_menu_dots)
 
-    self.btn_putin = RussianFlagButton(size_hint=(None, None))
-    self.btn_putin.bind(on_press=self.putin_punch)
+    self.btn_fist = FistButton(size_hint=(None, None))
+    self.btn_fist.text = 'УДАР!' if self.lang == 'RU' else 'PUNCH!'
+    self.btn_fist.bind(on_press=self.do_punch)
 
     self.add_widget(self.game_container)
     Window.bind(on_key_down=self.on_key_down)
@@ -968,17 +956,17 @@ class TetrisGame(BoxLayout):
         self.trump_active = True
         self.trump_x = -300
         self.trump_state = 'entering'
-        if not self.btn_putin.parent:
-          self.game_container.add_widget(self.btn_putin)
+        if not self.btn_fist.parent:
+          self.game_container.add_widget(self.btn_fist)
 
-  def putin_punch(self, instance):
+  def do_punch(self, instance):
     if self.trump_active and self.trump_state == 'entering':
       self.sound_mgr.play('punch')
       self.punch_active = True
       self.trump_state = 'knockout'
       self.trump_speed = 25
-      if self.btn_putin.parent:
-        self.game_container.remove_widget(self.btn_putin)
+      if self.btn_fist.parent:
+        self.game_container.remove_widget(self.btn_fist)
       Clock.schedule_once(self.disable_punch, 0.2)
 
   def disable_punch(self, dt):
@@ -994,7 +982,7 @@ class TetrisGame(BoxLayout):
         if self.trump_x >= self.board.ox + dp(20):
           self.trump_state = 'stealing'
       elif self.trump_state == 'stealing':
-        self.sound_mgr.play('laugh')  # <--- Противный смешок при краже
+        self.sound_mgr.play('laugh')
         self.current_shape = random.choice(SHAPES[2:])
         self.current_color = random.choice(COLORS[2:])
         self.piece_x = max(
@@ -1005,8 +993,8 @@ class TetrisGame(BoxLayout):
             ),
         )
         self.trump_state = 'leaving'
-        if self.btn_putin.parent:
-          self.game_container.remove_widget(self.btn_putin)
+        if self.btn_fist.parent:
+          self.game_container.remove_widget(self.btn_fist)
       elif self.trump_state in ['leaving', 'knockout']:
         self.trump_x -= self.trump_speed
         if self.trump_x <= -500:
