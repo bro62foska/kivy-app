@@ -63,5 +63,9 @@ jobs:
       - name: Upload Unsigned APK
         uses: actions/upload-artifact@v4
         with:
-          name: Unsigned-APK
-          path: bin/*.apk
+      - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: tetris-game-apk
+        path: bin/*.apk
+
