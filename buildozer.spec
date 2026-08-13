@@ -7,7 +7,8 @@ package.domain = org.tetris
 
 # Исходный код
 source.dir = .
-source.include_exts = py,png,jpg,kv,atlas
+source.include_exts = py,png,jpg,kv,atlas,wav,ogg,json
+
 # Иконка приложения
 icon.filename = %(source.dir)s/icon.png
 
