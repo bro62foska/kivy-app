@@ -58,14 +58,10 @@ jobs:
           pip install buildozer cython==0.29.33
 
       - name: Build APK with Buildozer
-        run: buildozer android release
+        run: buildozer -v android debug
 
-      - name: Upload Unsigned APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-      - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: tetris-game-apk
-        path: bin/*.apk
-
+          name: tetris-game-apk
+          path: bin/*.apk
