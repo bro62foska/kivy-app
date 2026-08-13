@@ -121,6 +121,7 @@ class SoundManager:
     self._gen_wave('clear', self._synth_clear)
     self._gen_wave('punch', self._synth_punch)
     self._gen_wave('gameover', self._synth_gameover)
+    self._gen_wave('laugh', self._synth_laugh)
 
   def _gen_wave(self, name, generator_func):
     filepath = os.path.join(self.sound_dir, f'{name}.wav')
@@ -210,8 +211,28 @@ class SoundManager:
         samples.append(val * 16000 * env)
     self._write_wav(path, samples, sr)
 
+  def _synth_laugh(self, path):
+    sr, samples = 22050, []
+    # Набор импульсов со сдвигом тона (Хе-хе-хе-ХА!)
+    bursts = [
+        (550, 400, 0.06),
+        (650, 450, 0.06),
+        (750, 500, 0.06),
+        (950, 300, 0.15),
+    ]
+    for start_freq, end_freq, dur in bursts:
+      n_samples = int(sr * dur)
+      for i in range(n_samples):
+        t = i / sr
+        freq = start_freq + (end_freq - start_freq) * (i / n_samples)
+        val = 1.0 if math.sin(2 * math.pi * freq * t) >= 0 else -1.0
+        env = math.sin(math.pi * (i / n_samples))
+        samples.append(val * 16000 * env)
+      samples.extend([0] * int(sr * 0.03))
+    self._write_wav(path, samples, sr)
+
   def load_sounds(self):
-    for name in ['move', 'rotate', 'drop', 'clear', 'punch', 'gameover']:
+    for name in ['move', 'rotate', 'drop', 'clear', 'punch', 'gameover', 'laugh']:
       filepath = os.path.join(self.sound_dir, f'{name}.wav')
       snd = SoundLoader.load(filepath)
       if snd:
@@ -540,7 +561,7 @@ class TetrisBoard(Widget):
               sy - s_size * 0.8,
               sx - s_size * 0.5,
               sy + s_size * 0.3,
-              sx + s_size * 0.5,
+              sx + s_size * 0.3,
               sy + s_size * 0.3,
           ])
 
@@ -973,6 +994,7 @@ class TetrisGame(BoxLayout):
         if self.trump_x >= self.board.ox + dp(20):
           self.trump_state = 'stealing'
       elif self.trump_state == 'stealing':
+        self.sound_mgr.play('laugh')  # <--- Противный смешок при краже
         self.current_shape = random.choice(SHAPES[2:])
         self.current_color = random.choice(COLORS[2:])
         self.piece_x = max(
