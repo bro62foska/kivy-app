@@ -26,20 +26,20 @@ SHAPES = [
     [[1, 1, 1, 1]],  # I
     [[1, 1], [1, 1]],  # O
     [[1, 1, 1], [0, 1, 0]],  # T
-    [[1, 1, 0], [0, 1, 1]],  # Z
-    [[0, 1, 1], [1, 1, 0]],  # S
-    [[1, 1, 1], [1, 0, 0]],  # J
-    [[1, 1, 1], [0, 0, 1]],  # L
+    [[1, 1, 0], [0, 1, 1]],  # Z (Молния)
+    [[0, 1, 1], [1, 1, 0]],  # S (Молния)
+    [[1, 1, 1], [1, 0, 0]],  # J (Г-образная)
+    [[1, 1, 1], [0, 0, 1]],  # L (Г-образная)
 ]
 
 COLORS = [
-    (0, 1, 1),
-    (1, 1, 0),
-    (0.5, 0, 0.5),
-    (1, 0, 0),
-    (0, 1, 0),
-    (0, 0, 1),
-    (1, 0.5, 0),
+    (0, 1, 1),  # 0: I - Циан
+    (1, 1, 0),  # 1: O - Желтый
+    (0.5, 0, 0.5),  # 2: T - Фиолетовый
+    (1, 0, 0),  # 3: Z - Красный (Молния)
+    (0, 1, 0),  # 4: S - Зеленый (Молния)
+    (0, 0, 1),  # 5: J - Синий (Г)
+    (1, 0.5, 0),  # 6: L - Оранжевый (Г)
 ]
 
 LANGUAGES = {
@@ -59,16 +59,23 @@ LANGUAGES = {
         'coins': 'МОНЕТЫ',
         'sound_on': 'ЗВУК: ВКЛ',
         'sound_off': 'ЗВУК: ВЫКЛ',
+        'diff_title': 'СЛОЖНОСТЬ / DIFFICULTY',
+        'diff_1': 'УРОВЕНЬ 1: ЛЕГКИЙ',
+        'diff_2': 'УРОВЕНЬ 2: ХАРДКОР',
         'instruction_title': 'КАК ИГРАТЬ:',
         'instructions': (
             '• Свайп Влево / Вправо — передвижение фигуры\n'
             '• Свайп Вверх — повернуть фигуру\n'
             '• Свайп Вниз — быстро сбросить вниз\n\n'
-            'ОСОБЕННОСТЬ (ВОР И КУЛАК):\n'
-            'Иногда на поле прибегает воришка, чтобы утащить ценную фигуру!\n\n'
-            'КАК ЗАЩИТИТЬСЯ:\n'
-            'Как только появляется воришка, снизу вылетает КНОПКА-КУЛАК (УДАР).\n'
-            'Жми на нее быстро, чтобы дать отпор и спасти фигуру!'
+            'УРОВНИ СЛОЖНОСТИ:\n'
+            '• Уровень 1: Воришка подменяет только падающую фигуру.\n'
+            '• Уровень 2: Воришка подменяет фигуры И крадет "Молнии" / "Г" прямо'
+            ' с поля!\n\n'
+            'ЗАЩИТА И ПОДКУП:\n'
+            '• Нажимай кнопку УДАР!, когда появляется воришка, чтобы выбить'
+            ' его!\n'
+            '• Кнопка "$" (200 монет на 1 ур. / 500 монет на 2 ур.) — подкуп'
+            ' воришки (защита на 30 сек на 1 ур. / 15 сек на 2 ур.)!'
         ),
     },
     'EN': {
@@ -87,16 +94,22 @@ LANGUAGES = {
         'coins': 'COINS',
         'sound_on': 'SOUND: ON',
         'sound_off': 'SOUND: OFF',
+        'diff_title': 'DIFFICULTY',
+        'diff_1': 'LEVEL 1: EASY',
+        'diff_2': 'LEVEL 2: HARDCORE',
         'instruction_title': 'HOW TO PLAY:',
         'instructions': (
             '• Swipe Left / Right — move piece\n'
             '• Swipe Up — rotate piece\n'
             '• Swipe Down — hard drop\n\n'
-            'SPECIAL FEATURE (THIEF & FIST):\n'
-            'Sometimes a thief runs in to steal a valuable piece!\n\n'
-            'HOW TO DEFEND:\n'
-            'As soon as the thief appears, a FIST BUTTON (PUNCH) appears below.\n'
-            'Tap it quickly to punch back and save your piece!'
+            'DIFFICULTY LEVELS:\n'
+            '• Level 1: Thief only steals falling pieces.\n'
+            '• Level 2: Thief steals falling pieces AND pulls "Lightning" / "L"'
+            ' blocks from grid!\n\n'
+            'DEFENSE & BRIBERY:\n'
+            '• Tap PUNCH! button when thief appears to knock him out!\n'
+            '• Tap "$" button (200 coins on Lvl 1 / 500 on Lvl 2) to bribe thief'
+            ' (30s protection on Lvl 1 / 15s on Lvl 2)!'
         ),
     },
 }
@@ -122,6 +135,10 @@ class SoundManager:
     self._gen_wave('punch', self._synth_punch)
     self._gen_wave('gameover', self._synth_gameover)
     self._gen_wave('laugh', self._synth_laugh)
+    self._gen_wave('bribe_bg', lambda p: self._synth_bribe_music(p, tempo=1.0))
+    self._gen_wave(
+        'bribe_bg_fast', lambda p: self._synth_bribe_music(p, tempo=1.5)
+    )
 
   def _gen_wave(self, name, generator_func):
     filepath = os.path.join(self.sound_dir, f'{name}.wav')
@@ -230,21 +247,86 @@ class SoundManager:
       samples.extend([0] * int(sr * 0.03))
     self._write_wav(path, samples, sr)
 
+  def _synth_bribe_music(self, path, tempo=1.0):
+    sr = 22050
+    notes = [
+        (392.00, 0.12),
+        (523.25, 0.12),
+        (659.25, 0.12),
+        (523.25, 0.22),
+        (392.00, 0.12),
+        (523.25, 0.12),
+        (659.25, 0.12),
+        (523.25, 0.22),
+        (440.00, 0.12),
+        (493.88, 0.12),
+        (523.25, 0.12),
+        (587.33, 0.12),
+        (659.25, 0.24),
+        (392.00, 0.12),
+        (523.25, 0.12),
+        (659.25, 0.12),
+        (523.25, 0.22),
+        (392.00, 0.12),
+        (523.25, 0.12),
+        (659.25, 0.12),
+        (523.25, 0.22),
+        (698.46, 0.12),
+        (659.25, 0.12),
+        (587.33, 0.12),
+        (523.25, 0.12),
+        (493.88, 0.12),
+        (587.33, 0.12),
+        (523.25, 0.35),
+    ]
+    samples = []
+    for freq, dur in notes:
+      actual_dur = dur / tempo
+      n_samples = int(sr * actual_dur)
+      for i in range(n_samples):
+        t = i / sr
+        val = 1.0 if math.sin(2 * math.pi * freq * t) >= 0 else -1.0
+        env = 1.0 - (i / n_samples) * 0.2
+        # Амплитуда снижена до 1200 для мягкого и очень тихого фонового звучания
+        samples.append(val * 1200 * env)
+    self._write_wav(path, samples, sr)
+
   def load_sounds(self):
-    for name in ['move', 'rotate', 'drop', 'clear', 'punch', 'gameover', 'laugh']:
+    for name in [
+        'move',
+        'rotate',
+        'drop',
+        'clear',
+        'punch',
+        'gameover',
+        'laugh',
+        'bribe_bg',
+        'bribe_bg_fast',
+    ]:
       filepath = os.path.join(self.sound_dir, f'{name}.wav')
       snd = SoundLoader.load(filepath)
       if snd:
         self.sounds[name] = snd
 
-  def play(self, sound_name):
+  def play(self, sound_name, loop=False):
     if not self.enabled:
       return
     snd = self.sounds.get(sound_name)
     if snd:
       if snd.state == 'play':
         snd.stop()
+      snd.loop = loop
+      # Настройка громкости (для музыки подкупа установлена тихая громкость 15%)
+      if 'bribe' in sound_name:
+        snd.volume = 0.15
+      else:
+        snd.volume = 1.0
       snd.play()
+
+  def stop(self, sound_name):
+    snd = self.sounds.get(sound_name)
+    if snd and snd.state == 'play':
+      snd.stop()
 
 
 class StylishMenuButton(Button):
@@ -306,6 +388,61 @@ class StylishMenuButton(Button):
       )
 
 
+class DollarButton(Button):
+
+  def __init__(self, **kwargs):
+    super().__init__(**kwargs)
+    self.background_color = (0, 0, 0, 0)
+    self.font_size = '20sp'
+    self.bold = True
+    self.usable = False
+    self.text = '$'
+    self.bind(
+        pos=self.update_canvas,
+        size=self.update_canvas,
+        state=self.update_canvas,
+    )
+
+  def set_state_info(self, usable, text_val='$'):
+    self.usable = usable
+    self.text = text_val
+    self.update_canvas()
+
+  def update_canvas(self, *args):
+    self.canvas.before.clear()
+    if self.width <= 0 or self.height <= 0:
+      return
+
+    with self.canvas.before:
+      Color(0, 0, 0, 0.35)
+      RoundedRectangle(
+          pos=(self.x + dp(2), self.y - dp(2)),
+          size=self.size,
+          radius=[dp(12)],
+      )
+
+      if self.usable:
+        if self.state == 'down':
+          Color(1, 0.7, 0, 0.95)
+        else:
+          Color(1, 0.84, 0, 0.95)
+        self.color = (0.1, 0.1, 0.1, 1)
+      else:
+        Color(0.22, 0.22, 0.26, 0.85)
+        self.color = (0.6, 0.6, 0.6, 1)
+
+      RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(12)])
+
+      line_color = (
+          (1, 1, 0.5, 0.8) if self.usable else (0.4, 0.4, 0.4, 0.5)
+      )
+      Color(*line_color)
+      Line(
+          rounded_rectangle=(self.x, self.y, self.width, self.height, dp(12)),
+          width=dp(1.2),
+      )
+
+
 class FistButton(Button):
 
   def __init__(self, **kwargs):
@@ -326,7 +463,6 @@ class FistButton(Button):
       return
 
     with self.canvas.before:
-      # Тень кнопки
       Color(0, 0, 0, 0.4)
       RoundedRectangle(
           pos=(self.x + dp(3), self.y - dp(3)),
@@ -334,14 +470,12 @@ class FistButton(Button):
           radius=[dp(16)],
       )
 
-      # Яркий боевой фон (оранжево-красный)
       if self.state == 'down':
         Color(0.75, 0.15, 0.1, 0.95)
       else:
         Color(0.9, 0.25, 0.15, 0.95)
       RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(16)])
 
-      # Золотистая акцентная рамка
       Color(1, 0.8, 0.2, 0.9)
       Line(
           rounded_rectangle=(self.x, self.y, self.width, self.height, dp(16)),
@@ -386,6 +520,23 @@ class TetrisBoard(Widget):
       menu_size = int(dp(46))
       self.game.btn_menu_dots.size = (menu_size, menu_size)
       self.game.btn_menu_dots.pos = (self.ox, dp(15))
+
+    if self.game.btn_dollar:
+      menu_size = int(dp(46))
+      self.game.btn_dollar.size = (menu_size, menu_size)
+      self.game.btn_dollar.pos = (self.ox + menu_size + dp(10), dp(15))
+
+      bribe_cost = 200 if self.game.difficulty == 1 else 500
+      is_usable = (self.game.coins >= bribe_cost) and (
+          not self.game.bribe_active
+      )
+
+      if self.game.bribe_active:
+        self.game.btn_dollar.set_state_info(
+            False, f'${self.game.bribe_time_left}s'
+        )
+      else:
+        self.game.btn_dollar.set_state_info(is_usable, '$')
 
     if self.game.lbl_stats:
       t = LANGUAGES[self.game.lang]
@@ -568,6 +719,10 @@ class TetrisBoard(Widget):
           *touch.pos
       ):
         return False
+      if self.game.btn_dollar and self.game.btn_dollar.collide_point(
+          *touch.pos
+      ):
+        return False
       self.touch_start_pos = touch.pos
       return True
     return super().on_touch_down(touch)
@@ -601,6 +756,7 @@ class TetrisGame(BoxLayout):
     self.orientation = 'vertical'
     self.state = 'menu'
     self.lang = 'RU'
+    self.difficulty = 1
     self.grid = [[None for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
 
     self.store = JsonStore('tetris_save.json')
@@ -611,14 +767,21 @@ class TetrisGame(BoxLayout):
     self.initial_highscore = 0
 
     self.trump_active = False
+    self.trump_mode = 'falling'
     self.trump_x = -500
     self.trump_speed = 18
     self.punch_active = False
+
+    self.bribe_active = False
+    self.bribe_fast_playing = False
+    self.bribe_time_left = 0
+    self.bribe_timer_event = None
 
     self.current_shape = None
     self.next_shape = None
     self.btn_fist = None
     self.btn_menu_dots = None
+    self.btn_dollar = None
     self.lbl_stats = None
     self.show_menu()
 
@@ -628,10 +791,12 @@ class TetrisGame(BoxLayout):
       self.highscore = data.get('highscore', 0)
       self.coins = data.get('coins', 0)
       self.sound_mgr.enabled = data.get('sound_enabled', True)
+      self.difficulty = data.get('difficulty', 1)
     else:
       self.highscore = 0
       self.coins = 0
       self.sound_mgr.enabled = True
+      self.difficulty = 1
       self.save_data()
 
   def save_data(self):
@@ -640,13 +805,14 @@ class TetrisGame(BoxLayout):
         highscore=self.highscore,
         coins=self.coins,
         sound_enabled=self.sound_mgr.enabled,
+        difficulty=self.difficulty,
     )
 
   def show_menu(self):
     self.clear_widgets()
     t = LANGUAGES[self.lang]
     menu_layout = BoxLayout(
-        orientation='vertical', padding=dp(20), spacing=dp(15)
+        orientation='vertical', padding=dp(25), spacing=dp(15)
     )
 
     menu_info = (
@@ -655,7 +821,7 @@ class TetrisGame(BoxLayout):
     )
     self.logo = Label(
         text=menu_info,
-        font_size='24sp',
+        font_size='22sp',
         halign='center',
         bold=True,
         size_hint=(1, 0.4),
@@ -663,7 +829,7 @@ class TetrisGame(BoxLayout):
 
     self.btn_start = Button(
         text=t['play'],
-        font_size='26sp',
+        font_size='22sp',
         bold=True,
         size_hint=(1, 0.2),
         background_color=(0.2, 0.8, 0.2, 1),
@@ -672,7 +838,7 @@ class TetrisGame(BoxLayout):
 
     self.btn_settings = Button(
         text=t['settings'],
-        font_size='22sp',
+        font_size='20sp',
         bold=True,
         size_hint=(1, 0.2),
         background_color=(0.2, 0.6, 1, 1),
@@ -681,9 +847,9 @@ class TetrisGame(BoxLayout):
 
     self.btn_close = Button(
         text=t['close_app'],
-        font_size='20sp',
+        font_size='18sp',
         bold=True,
-        size_hint=(1, 0.2),
+        size_hint=(1, 0.18),
         background_color=(0.8, 0.2, 0.2, 1),
     )
     self.btn_close.bind(on_press=self.close_app)
@@ -705,13 +871,13 @@ class TetrisGame(BoxLayout):
         font_size='14sp',
         bold=True,
         size_hint=(1, None),
-        height=dp(25),
+        height=dp(22),
         color=(0.8, 0.8, 0.8, 1),
     )
     lang_bar = BoxLayout(
         orientation='horizontal',
         size_hint=(1, None),
-        height=dp(42),
+        height=dp(40),
         spacing=dp(8),
     )
 
@@ -741,7 +907,7 @@ class TetrisGame(BoxLayout):
         font_size='15sp',
         bold=True,
         size_hint=(1, None),
-        height=dp(42),
+        height=dp(40),
         background_color=(0.3, 0.8, 0.3, 1)
         if self.sound_mgr.enabled
         else (0.5, 0.5, 0.5, 1),
@@ -761,12 +927,45 @@ class TetrisGame(BoxLayout):
 
     btn_sound.bind(on_press=toggle_sound)
 
-    instr_title = Label(
-        text=t['instruction_title'],
-        font_size='16sp',
+    diff_label = Label(
+        text=t['diff_title'],
+        font_size='14sp',
         bold=True,
         size_hint=(1, None),
-        height=dp(30),
+        height=dp(22),
+        color=(0.8, 0.8, 0.8, 1),
+    )
+
+    diff_text = t['diff_1'] if self.difficulty == 1 else t['diff_2']
+    diff_bg = (
+        (0.2, 0.7, 0.3, 1) if self.difficulty == 1 else (0.9, 0.3, 0.2, 1)
+    )
+
+    btn_diff = Button(
+        text=diff_text,
+        font_size='15sp',
+        bold=True,
+        size_hint=(1, None),
+        height=dp(40),
+        background_color=diff_bg,
+    )
+
+    def toggle_diff(inst):
+      self.difficulty = 2 if self.difficulty == 1 else 1
+      self.save_data()
+      btn_diff.text = t['diff_1'] if self.difficulty == 1 else t['diff_2']
+      btn_diff.background_color = (
+          (0.2, 0.7, 0.3, 1) if self.difficulty == 1 else (0.9, 0.3, 0.2, 1)
+      )
+
+    btn_diff.bind(on_press=toggle_diff)
+
+    instr_title = Label(
+        text=t['instruction_title'],
+        font_size='15sp',
+        bold=True,
+        size_hint=(1, None),
+        height=dp(25),
         color=(1, 0.8, 0.2, 1),
     )
 
@@ -796,14 +995,14 @@ class TetrisGame(BoxLayout):
         font_size='16sp',
         bold=True,
         size_hint=(1, None),
-        height=dp(45),
+        height=dp(42),
         background_color=(0.8, 0.2, 0.2, 1),
     )
 
     popup = Popup(
         title=t['settings_title'],
         content=content,
-        size_hint=(0.92, 0.82),
+        size_hint=(0.92, 0.85),
         auto_dismiss=True,
     )
 
@@ -820,6 +1019,8 @@ class TetrisGame(BoxLayout):
     content.add_widget(lang_label)
     content.add_widget(lang_bar)
     content.add_widget(btn_sound)
+    content.add_widget(diff_label)
+    content.add_widget(btn_diff)
     content.add_widget(instr_title)
     content.add_widget(scroll)
     content.add_widget(btn_close_popup)
@@ -835,8 +1036,10 @@ class TetrisGame(BoxLayout):
     self.grid = [[None for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
     self.trump_active = False
     self.punch_active = False
-    self.score = 0
 
+    self.stop_bribe()
+
+    self.score = 0
     self.load_data()
     self.initial_highscore = self.highscore
 
@@ -860,6 +1063,10 @@ class TetrisGame(BoxLayout):
     self.btn_menu_dots.bind(on_press=self.open_pause_popup)
     self.game_container.add_widget(self.btn_menu_dots)
 
+    self.btn_dollar = DollarButton(size_hint=(None, None))
+    self.btn_dollar.bind(on_press=self.buy_bribe)
+    self.game_container.add_widget(self.btn_dollar)
+
     self.btn_fist = FistButton(size_hint=(None, None))
     self.btn_fist.text = 'УДАР!' if self.lang == 'RU' else 'PUNCH!'
     self.btn_fist.bind(on_press=self.do_punch)
@@ -873,6 +1080,53 @@ class TetrisGame(BoxLayout):
 
     Clock.schedule_interval(self.update, 0.03)
     self.fall_buffer = 0
+
+  def buy_bribe(self, instance):
+    bribe_cost = 200 if self.difficulty == 1 else 500
+
+    if self.coins >= bribe_cost and not self.bribe_active:
+      self.coins -= bribe_cost
+      self.save_data()
+      self.bribe_active = True
+
+      self.bribe_time_left = 30 if self.difficulty == 1 else 15
+      self.bribe_fast_playing = False
+
+      self.sound_mgr.play('bribe_bg', loop=True)
+
+      if self.trump_active:
+        self.trump_state = 'leaving'
+        if self.btn_fist and self.btn_fist.parent:
+          self.game_container.remove_widget(self.btn_fist)
+
+      self.bribe_timer_event = Clock.schedule_interval(
+          self.update_bribe_timer, 1.0
+      )
+      self.board.draw_board()
+
+  def update_bribe_timer(self, dt):
+    if self.state == 'playing':
+      self.bribe_time_left -= 1
+
+      threshold = 10 if self.difficulty == 1 else 5
+      if self.bribe_time_left <= threshold and not self.bribe_fast_playing:
+        self.bribe_fast_playing = True
+        self.sound_mgr.stop('bribe_bg')
+        self.sound_mgr.play('bribe_bg_fast', loop=True)
+
+      if self.bribe_time_left <= 0:
+        self.stop_bribe()
+
+      self.board.draw_board()
+
+  def stop_bribe(self):
+    self.bribe_active = False
+    self.bribe_fast_playing = False
+    self.sound_mgr.stop('bribe_bg')
+    self.sound_mgr.stop('bribe_bg_fast')
+    if self.bribe_timer_event:
+      self.bribe_timer_event.cancel()
+      self.bribe_timer_event = None
 
   def open_pause_popup(self, instance):
     if self.state == 'playing':
@@ -933,6 +1187,7 @@ class TetrisGame(BoxLayout):
 
   def exit_to_menu(self, instance):
     Clock.unschedule(self.update)
+    self.stop_bribe()
     self.state = 'menu'
     self.save_data()
     self.show_menu()
@@ -951,9 +1206,14 @@ class TetrisGame(BoxLayout):
       self.exit_to_menu(None)
       return
 
-    if not self.trump_active and self.current_shape in [SHAPES[0], SHAPES[1]]:
-      if random.random() < 0.6:
+    if (
+        not self.trump_active
+        and not self.bribe_active
+        and self.current_shape in [SHAPES[0], SHAPES[1]]
+    ):
+      if random.random() < 0.5:
         self.trump_active = True
+        self.trump_mode = 'falling'
         self.trump_x = -300
         self.trump_state = 'entering'
         if not self.btn_fist.parent:
@@ -972,6 +1232,29 @@ class TetrisGame(BoxLayout):
   def disable_punch(self, dt):
     self.punch_active = False
 
+  def steal_grid_blocks(self):
+    target_colors = COLORS[3:7]
+    matching_cells = [
+        (y, x)
+        for y in range(GRID_HEIGHT)
+        for x in range(GRID_WIDTH)
+        if self.grid[y][x] in target_colors
+    ]
+
+    if matching_cells:
+      target_cell = random.choice(matching_cells)
+      chosen_color = self.grid[target_cell[0]][target_cell[1]]
+
+      same_color_cells = [
+          (y, x)
+          for (y, x) in matching_cells
+          if self.grid[y][x] == chosen_color
+      ]
+      blocks_to_steal = same_color_cells[:4]
+
+      for y, x in blocks_to_steal:
+        self.grid[y][x] = None
+
   def update(self, dt):
     if self.state != 'playing':
       return True
@@ -983,15 +1266,20 @@ class TetrisGame(BoxLayout):
           self.trump_state = 'stealing'
       elif self.trump_state == 'stealing':
         self.sound_mgr.play('laugh')
-        self.current_shape = random.choice(SHAPES[2:])
-        self.current_color = random.choice(COLORS[2:])
-        self.piece_x = max(
-            0,
-            min(
-                GRID_WIDTH - len(self.current_shape[0]),
-                GRID_WIDTH // 2 - len(self.current_shape[0]) // 2,
-            ),
-        )
+
+        if self.trump_mode == 'falling':
+          self.current_shape = random.choice(SHAPES[2:])
+          self.current_color = random.choice(COLORS[2:])
+          self.piece_x = max(
+              0,
+              min(
+                  GRID_WIDTH - len(self.current_shape[0]),
+                  GRID_WIDTH // 2 - len(self.current_shape[0]) // 2,
+              ),
+          )
+        elif self.trump_mode == 'grid':
+          self.steal_grid_blocks()
+
         self.trump_state = 'leaving'
         if self.btn_fist.parent:
           self.game_container.remove_widget(self.btn_fist)
@@ -1029,6 +1317,27 @@ class TetrisGame(BoxLayout):
         if val:
           self.grid[self.piece_y + r][self.piece_x + c] = self.current_color
     self.clear_rows()
+
+    if (
+        self.difficulty == 2
+        and not self.trump_active
+        and not self.bribe_active
+        and random.random() < 0.35
+    ):
+      target_colors = COLORS[3:7]
+      grid_has_targets = any(
+          self.grid[y][x] in target_colors
+          for y in range(GRID_HEIGHT)
+          for x in range(GRID_WIDTH)
+      )
+      if grid_has_targets:
+        self.trump_active = True
+        self.trump_mode = 'grid'
+        self.trump_x = -300
+        self.trump_state = 'entering'
+        if not self.btn_fist.parent:
+          self.game_container.add_widget(self.btn_fist)
+
     self.spawn_piece()
 
   def clear_rows(self):
